@@ -18,3 +18,17 @@ export async function query(text, params) {
   console.log("🗄 DB query:", { text, duration, rows: res.rowCount });
   return res;
 }
+import pkg from "pg";
+import dotenv from "dotenv";
+
+dotenv.config();
+const { Pool } = pkg;
+
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+export async function query(sql, params) {
+  return pool.query(sql, params);
+}
