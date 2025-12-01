@@ -3,20 +3,33 @@ from flask_cors import CORS
 import mysql.connector
 
 app = Flask(__name__)
-CORS(app, origins=["http://127.0.0.1:5500", "http://localhost:5500"], supports_credentials=True)
+CORS(app, origins=[
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
+    "https://monikak2004.github.io"
+], supports_credentials=True)
+
+
+import mysql.connector
 
 # ==============================
-# Database Connection
+# Database Connection (Railway)
 # ==============================
-db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="20thApril2005",
-    database="freshcart_db"
-)
-cursor = db.cursor(dictionary=True)
+try:
+    db = mysql.connector.connect(
+        host="mainline.proxy.rlwy.net",
+        user="root",
+        password="NGjzauEicmGceHvQKVhrWnDRfyXSBTRx",
+        database="railway",
+        port=57789
+    )
+    cursor = db.cursor(dictionary=True)
+    print("✅ Connected to Railway MySQL")
+except Exception as e:
+    print("❌ DB connection failed:", e)
+    db = None
+    cursor = None
 
-print("✅ Flask backend running at http://127.0.0.1:5000")
 
 # ==============================
 # CORS HEADERS
@@ -590,4 +603,5 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
