@@ -24,13 +24,7 @@ try:
         port=57789
     )
     cursor = db.cursor(dictionary=True)
-    print("✅ Connected to Railway MySQL")
-except Exception as e:
-    print("❌ DB connection failed:", e)
-    db = None
-    cursor = None
-    
-@app.route('/debug/db')
+    @app.route('/debug/db')
 def debug_db():
     try:
         if cursor is None:
@@ -41,6 +35,13 @@ def debug_db():
         return jsonify({"ok": True, "tables": tables}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+    print("✅ Connected to Railway MySQL")
+except Exception as e:
+    print("❌ DB connection failed:", e)
+    db = None
+    cursor = None
+
 
 def init_db():
     """
@@ -760,6 +761,7 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
