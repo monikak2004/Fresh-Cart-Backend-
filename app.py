@@ -779,6 +779,34 @@ if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
 
 
+@app.route('/order_items/<int:order_id>', methods=['GET'])
+def get_order_items(order_id):
+    try:
+        cursor.execute("""
+            SELECT 
+                oi.order_item_id,
+                oi.order_id,
+                oi.quantity,
+                oi.price,
+                v.variant_id,
+                v.brand,
+                v.unit,
+                sp.name AS subproduct_name,
+                p.name AS product_name,
+                c.name AS category_name
+            FROM Order_Items oi
+            JOIN Product_Variants v ON oi.variant_id = v.variant_id
+            JOIN SubProducts sp ON v.subproduct_id = sp.subproduct_id
+            JOIN Products p ON sp.product_id = p.product_id
+            JOIN Categories c ON p.category_id = c.category_id
+            WHERE oi.order_id = %s
+        """, (order_id,))
+        items = cursor.fetchall()
+        return jsonify(items), 200
+    except Exception as e:
+        print("❌ /order_items error:", e)
+        return jsonify({"error": "Failed to fetch order items", "details": str(e)}), 500
+
 
 
 
