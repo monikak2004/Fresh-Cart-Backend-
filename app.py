@@ -51,30 +51,33 @@ def add_cors_headers(response):
 def home():
     return jsonify({"message": "FreshCart Flask Backend is running!"})
 
-# ==============================
-# 2️⃣ REGISTER
-# ==============================
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.json
-    name = data.get("name")
-    email = data.get("email")
-    password = data.get("password")
-    role = data.get("role")
+    try:
+        data = request.json
+        name = data.get("name")
+        email = data.get("email")
+        password = data.get("password")
+        role = data.get("role")
 
-    if not all([name, email, password, role]):
-        return jsonify({"error": "Missing registration details"}), 400
+        if not all([name, email, password, role]):
+            return jsonify({"error": "Missing registration details"}), 400
 
-    cursor.execute("SELECT 1 FROM Users WHERE email=%s", (email,))
-    if cursor.fetchone():
-        return jsonify({"error": "User already exists"}), 400
+        cursor.execute("SELECT 1 FROM Users WHERE email=%s", (email,))
+        if cursor.fetchone():
+            return jsonify({"error": "User already exists"}), 400
 
-    cursor.execute(
-        "INSERT INTO Users (name, email, password, role) VALUES (%s, %s, %s, %s)",
-        (name, email, password, role)
-    )
-    db.commit()
-    return jsonify({"message": "User registered successfully"}), 201
+        cursor.execute(
+            "INSERT INTO Users (name, email, password, role) VALUES (%s, %s, %s, %s)",
+            (name, email, password, role)
+        )
+        db.commit()
+        return jsonify({"message": "User registered successfully"}), 201
+
+    except Exception as e:
+        # 🔥 TEMPORARY: show the real error so we know what’s wrong
+        print("❌ /register error:", e)
+        return jsonify({"error": "Server error", "details": str(e)}), 500
 
 # ==============================
 # 3️⃣ LOGIN
@@ -605,6 +608,7 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
