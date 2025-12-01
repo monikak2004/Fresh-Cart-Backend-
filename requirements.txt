@@ -1,4 +1,4 @@
 flask
 gunicorn
 flask-cors
-google-cloud-firestore
+mysql-connector-python
