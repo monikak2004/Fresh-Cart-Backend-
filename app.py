@@ -201,7 +201,7 @@ def home():
 def register():
     try:
         if cursor is None:
-            return jsonify({"error": "DB not connected"}), 500
+            return jsonify({"error": "DB not connected on server"}), 500
 
         data = request.json or {}
         name = data.get("name")
@@ -235,7 +235,7 @@ def register():
 def login():
     try:
         if cursor is None:
-            return jsonify({"error": "DB not connected"}), 500
+            return jsonify({"error": "DB not connected on server"}), 500
 
         data = request.json or {}
         email = data.get("email")
@@ -259,7 +259,6 @@ def login():
     except Exception as e:
         print("❌ /login error:", e)
         return jsonify({"error": "Server error", "details": str(e)}), 500
-
 
 # ==============================
 # 4️⃣ CATALOG
@@ -778,6 +777,7 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
