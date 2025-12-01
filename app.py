@@ -30,6 +30,141 @@ except Exception as e:
     db = None
     cursor = None
 
+def init_db():
+    """
+    Completely reset and recreate all tables to match the backend code.
+    Runs once at startup.
+    """
+    if cursor is None:
+        print("⚠️ Skipping DB init (no connection).")
+        return
+
+    try:
+        print("🔧 Initializing database schema...")
+
+        # 1) Turn off FK checks so we can drop in any order
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+
+        # 2) Drop old/broken tables if they exist
+        cursor.execute("DROP TABLE IF EXISTS Order_Items")
+        cursor.execute("DROP TABLE IF EXISTS Payments")
+        cursor.execute("DROP TABLE IF EXISTS Orders")
+        cursor.execute("DROP TABLE IF EXISTS Product_Variants")
+        cursor.execute("DROP TABLE IF EXISTS SubProducts")
+        cursor.execute("DROP TABLE IF EXISTS Products")
+        cursor.execute("DROP TABLE IF EXISTS Categories")
+        cursor.execute("DROP TABLE IF EXISTS Users")
+
+        # 3) Turn FK checks back on
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+
+        # 4) Recreate tables with the exact schema your code expects
+
+        # USERS
+        cursor.execute("""
+            CREATE TABLE Users (
+                user_id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                role ENUM('shop_owner','distributor') NOT NULL,
+                contact_no VARCHAR(20),
+                address TEXT
+            )
+        """)
+
+        # CATEGORIES
+        cursor.execute("""
+            CREATE TABLE Categories (
+                category_id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE
+            )
+        """)
+
+        # PRODUCTS
+        cursor.execute("""
+            CREATE TABLE Products (
+                product_id INT AUTO_INCREMENT PRIMARY KEY,
+                category_id INT NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                image_url VARCHAR(500),
+                FOREIGN KEY (category_id) REFERENCES Categories(category_id)
+            )
+        """)
+
+        # SUBPRODUCTS
+        cursor.execute("""
+            CREATE TABLE SubProducts (
+                subproduct_id INT AUTO_INCREMENT PRIMARY KEY,
+                product_id INT NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                FOREIGN KEY (product_id) REFERENCES Products(product_id)
+            )
+        """)
+
+        # PRODUCT VARIANTS
+        cursor.execute("""
+            CREATE TABLE Product_Variants (
+                variant_id INT AUTO_INCREMENT PRIMARY KEY,
+                subproduct_id INT NOT NULL,
+                distributor_id INT NOT NULL,
+                brand VARCHAR(100) NOT NULL,
+                unit VARCHAR(20) NOT NULL,
+                price DECIMAL(10,2) NOT NULL,
+                stock INT NOT NULL,
+                FOREIGN KEY (subproduct_id) REFERENCES SubProducts(subproduct_id),
+                FOREIGN KEY (distributor_id) REFERENCES Users(user_id)
+            )
+        """)
+
+        # ORDERS
+        cursor.execute("""
+            CREATE TABLE Orders (
+                order_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+                payment_status VARCHAR(50) NOT NULL DEFAULT 'Unpaid',
+                order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                total_amount DECIMAL(10,2) NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES Users(user_id)
+            )
+        """)
+
+        # PAYMENTS
+        cursor.execute("""
+            CREATE TABLE Payments (
+                payment_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+                payment_method VARCHAR(50),
+                payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (order_id) REFERENCES Orders(order_id)
+            )
+        """)
+
+        # ORDER ITEMS
+        cursor.execute("""
+            CREATE TABLE Order_Items (
+                order_item_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                variant_id INT NOT NULL,
+                quantity INT NOT NULL,
+                price DECIMAL(10,2) NOT NULL,
+                FOREIGN KEY (order_id) REFERENCES Orders(order_id),
+                FOREIGN KEY (variant_id) REFERENCES Product_Variants(variant_id)
+            )
+        """)
+
+        db.commit()
+        print("✅ Database schema initialized successfully.")
+
+    except Exception as e:
+        db.rollback()
+        print("❌ Error initializing DB schema:", e)
+
+# 👉 call this right after defining it
+init_db()
 
 # ==============================
 # CORS HEADERS
@@ -603,6 +738,7 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
