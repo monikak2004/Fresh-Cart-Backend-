@@ -29,6 +29,18 @@ except Exception as e:
     print("❌ DB connection failed:", e)
     db = None
     cursor = None
+    
+@app.route('/debug/db')
+def debug_db():
+    try:
+        if cursor is None:
+            return jsonify({"ok": False, "error": "DB not connected"}), 500
+
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        return jsonify({"ok": True, "tables": tables}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 def init_db():
     """
@@ -748,6 +760,7 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
