@@ -3,18 +3,18 @@ from flask_cors import CORS
 import mysql.connector
 
 app = Flask(__name__)
+
 CORS(app, origins=[
     "http://127.0.0.1:5500",
     "http://localhost:5500",
     "https://monikak2004.github.io"
 ], supports_credentials=True)
 
-
-import mysql.connector
-
 # ==============================
 # Database Connection (Railway)
 # ==============================
+db = None
+cursor = None
 try:
     db = mysql.connector.connect(
         host="mainline.proxy.rlwy.net",
@@ -24,41 +24,24 @@ try:
         port=57789
     )
     cursor = db.cursor(dictionary=True)
-    @app.route('/debug/db')
-def debug_db():
-    try:
-        if cursor is None:
-            return jsonify({"ok": False, "error": "DB not connected"}), 500
-
-        cursor.execute("SHOW TABLES")
-        tables = cursor.fetchall()
-        return jsonify({"ok": True, "tables": tables}), 200
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
     print("✅ Connected to Railway MySQL")
 except Exception as e:
     print("❌ DB connection failed:", e)
-    db = None
-    cursor = None
 
 
+# ==============================
+# Initialize DB schema
+# ==============================
 def init_db():
-    """
-    Completely reset and recreate all tables to match the backend code.
-    Runs once at startup.
-    """
     if cursor is None:
-        print("⚠️ Skipping DB init (no connection).")
+        print("⚠️ Skipping DB init (no DB connection).")
         return
 
     try:
         print("🔧 Initializing database schema...")
 
-        # 1) Turn off FK checks so we can drop in any order
+        # Drop in safe order
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
-
-        # 2) Drop old/broken tables if they exist
         cursor.execute("DROP TABLE IF EXISTS Order_Items")
         cursor.execute("DROP TABLE IF EXISTS Payments")
         cursor.execute("DROP TABLE IF EXISTS Orders")
@@ -67,11 +50,7 @@ def init_db():
         cursor.execute("DROP TABLE IF EXISTS Products")
         cursor.execute("DROP TABLE IF EXISTS Categories")
         cursor.execute("DROP TABLE IF EXISTS Users")
-
-        # 3) Turn FK checks back on
         cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
-
-        # 4) Recreate tables with the exact schema your code expects
 
         # USERS
         cursor.execute("""
@@ -171,26 +150,53 @@ def init_db():
 
         db.commit()
         print("✅ Database schema initialized successfully.")
-
     except Exception as e:
         db.rollback()
         print("❌ Error initializing DB schema:", e)
 
-# 👉 call this right after defining it
-init_db()
+
+if cursor is not None:
+    init_db()
+
 
 # ==============================
 # CORS HEADERS
 # ==============================
 @app.after_request
 def add_cors_headers(response):
-    # 👉 Allow your GitHub Pages frontend
     response.headers["Access-Control-Allow-Origin"] = "https://monikak2004.github.io"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
     return response
 
+
+# ==============================
+# DEBUG DB
+# ==============================
+@app.route('/debug/db')
+def debug_db():
+    try:
+        if cursor is None:
+            return jsonify({"ok": False, "error": "DB not connected"}), 500
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        return jsonify({"ok": True, "tables": tables}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ==============================
+# 1️⃣ ROOT
+# ==============================
+@app.route('/')
+def home():
+    return jsonify({"message": "FreshCart Flask Backend is running!"})
+
+
+# ==============================
+# 2️⃣ REGISTER
+# ==============================
 @app.route('/register', methods=['POST'])
 def register():
     try:
@@ -222,6 +228,8 @@ def register():
         return jsonify({"error": "Server error", "details": str(e)}), 500
 
 
+# ==============================
+# 3️⃣ LOGIN
 # ==============================
 @app.route('/login', methods=['POST'])
 def login():
@@ -258,42 +266,47 @@ def login():
 # ==============================
 @app.route('/catalog', methods=['GET'])
 def get_catalog():
-    cursor.execute("""
-        SELECT 
-            c.name AS category,
-            p.name AS product,
-            sp.subproduct_id,
-            sp.name AS subproduct,
-            v.variant_id,
-            v.brand,
-            v.price,
-            v.stock,
-            v.unit,
-            u.name AS distributor_name
-        FROM Product_Variants v
-        JOIN SubProducts sp ON v.subproduct_id = sp.subproduct_id
-        JOIN Products p ON sp.product_id = p.product_id
-        JOIN Categories c ON p.category_id = c.category_id
-        JOIN Users u ON v.distributor_id = u.user_id
-        ORDER BY c.name, p.name, sp.name, v.brand
-    """)
-    return jsonify(cursor.fetchall())
+    try:
+        cursor.execute("""
+            SELECT 
+                c.name AS category,
+                p.name AS product,
+                sp.subproduct_id,
+                sp.name AS subproduct,
+                v.variant_id,
+                v.brand,
+                v.price,
+                v.stock,
+                v.unit,
+                u.name AS distributor_name
+            FROM Product_Variants v
+            JOIN SubProducts sp ON v.subproduct_id = sp.subproduct_id
+            JOIN Products p ON sp.product_id = p.product_id
+            JOIN Categories c ON p.category_id = c.category_id
+            JOIN Users u ON v.distributor_id = u.user_id
+            ORDER BY c.name, p.name, sp.name, v.brand
+        """)
+        return jsonify(cursor.fetchall()), 200
+    except Exception as e:
+        print("❌ /catalog error:", e)
+        return jsonify({"error": "Server error", "details": str(e)}), 500
+
 
 # ==============================
 # 5️⃣ PLACE ORDER
 # ==============================
 @app.route('/place_order', methods=['POST'])
 def place_order():
-    data = request.json
-    user_id = data.get("user_id")
-    cart = data.get("cart", [])
-    total = float(data.get("total", 0))
-    delivery_fee = float(data.get("delivery_fee", 0))
-
-    if not user_id or not cart:
-        return jsonify({"error": "Missing order details"}), 400
-
     try:
+        data = request.json or {}
+        user_id = data.get("user_id")
+        cart = data.get("cart", [])
+        total = float(data.get("total", 0))
+        delivery_fee = float(data.get("delivery_fee", 0))
+
+        if not user_id or not cart:
+            return jsonify({"error": "Missing order details"}), 400
+
         cursor.execute(
             "INSERT INTO Orders (user_id, status, payment_status, total_amount) VALUES (%s, %s, %s, %s)",
             (user_id, "Pending", "Unpaid", total + delivery_fee)
@@ -316,8 +329,9 @@ def place_order():
         return jsonify({"message": "Order placed successfully", "order_id": order_id}), 201
     except Exception as e:
         db.rollback()
-        print("❌ place_order error:", e)
-        return jsonify({"error": str(e)}), 500
+        print("❌ /place_order error:", e)
+        return jsonify({"error": "Server error", "details": str(e)}), 500
+
 
 # ==============================
 # 6️⃣ SHOPOWNER ORDERS
@@ -345,8 +359,9 @@ def get_orders(user_id):
         """, (user_id,))
         return jsonify(cursor.fetchall()), 200
     except Exception as e:
-        print("❌ Error fetching shopowner orders:", e)
-        return jsonify({"error": str(e)}), 500
+        print("❌ /orders error:", e)
+        return jsonify({"error": "Server error", "details": str(e)}), 500
+
 
 # ==============================
 # 7️⃣ SHOPOWNER PAYMENTS
@@ -373,14 +388,12 @@ def get_payments(user_id):
             GROUP BY p.payment_id, p.order_id, u2.name, o.status
             ORDER BY p.payment_date DESC
         """, (user_id,))
-        
         payments = cursor.fetchall()
         if not payments:
-            return jsonify([]), 200  # ✅ Prevent frontend crash if empty
+            return jsonify([]), 200
         return jsonify(payments), 200
-
     except Exception as e:
-        print("❌ Error fetching payments:", e)
+        print("❌ /payments error:", e)
         return jsonify({"error": "Failed to fetch payments", "details": str(e)}), 500
 
 
@@ -410,11 +423,12 @@ def get_distributor_payments(distributor_id):
         """, (distributor_id,))
         return jsonify(cursor.fetchall()), 200
     except Exception as e:
-        print("❌ Error fetching distributor payments:", e)
+        print("❌ /distributor/payments error:", e)
         return jsonify({"error": str(e)}), 500
 
+
 # ==============================
-# 9️⃣ DISTRIBUTOR UPDATE PAYMENT (Paid/Completed/Refunded/Cancelled)
+# 9️⃣ DISTRIBUTOR UPDATE PAYMENT
 # ==============================
 @app.route('/distributor/update_payment/<int:payment_id>', methods=['PUT'])
 def update_distributor_payment(payment_id):
@@ -426,7 +440,6 @@ def update_distributor_payment(payment_id):
         if new_status not in allowed_statuses:
             return jsonify({"error": f"Invalid status '{new_status}'"}), 400
 
-        # ✅ Update payment in both distributor & shopowner view (same table)
         cursor.execute("""
             UPDATE Payments
             SET status = %s
@@ -434,7 +447,6 @@ def update_distributor_payment(payment_id):
         """, (new_status, payment_id))
         db.commit()
 
-        # ✅ Optional: update Orders.payment_status for clarity in shopowner orders view
         cursor.execute("""
             UPDATE Orders o
             JOIN Payments p ON o.order_id = p.order_id
@@ -451,31 +463,33 @@ def update_distributor_payment(payment_id):
         return jsonify({"error": str(e)}), 500
 
 
-# ==============================
 # 🔟 DISTRIBUTOR ORDERS (LIST)
-# ==============================
 @app.route('/distributor/orders/<int:distributor_id>', methods=['GET'])
 def get_distributor_orders(distributor_id):
-    cursor.execute("""
-        SELECT DISTINCT 
-            o.order_id, 
-            o.order_date, 
-            o.status, 
-            o.payment_status, 
-            u.name AS shop_owner, 
-            p.amount
-        FROM Orders o
-        JOIN Order_Items oi ON o.order_id = oi.order_id
-        JOIN Product_Variants v ON oi.variant_id = v.variant_id
-        JOIN Users u ON o.user_id = u.user_id
-        JOIN Payments p ON o.order_id = p.order_id
-        WHERE v.distributor_id = %s AND o.status != 'Deleted'
-        ORDER BY o.order_date DESC
-    """, (distributor_id,))
-    return jsonify(cursor.fetchall())
+    try:
+        cursor.execute("""
+            SELECT DISTINCT 
+                o.order_id, 
+                o.order_date, 
+                o.status, 
+                o.payment_status, 
+                u.name AS shop_owner, 
+                p.amount
+            FROM Orders o
+            JOIN Order_Items oi ON o.order_id = oi.order_id
+            JOIN Product_Variants v ON oi.variant_id = v.variant_id
+            JOIN Users u ON o.user_id = u.user_id
+            JOIN Payments p ON o.order_id = p.order_id
+            WHERE v.distributor_id = %s AND o.status != 'Deleted'
+            ORDER BY o.order_date DESC
+        """, (distributor_id,))
+        return jsonify(cursor.fetchall()), 200
+    except Exception as e:
+        print("❌ /distributor/orders error:", e)
+        return jsonify({"error": str(e)}), 500
 
 
-# 1️⃣1️⃣ DISTRIBUTOR ORDER STATUS UPDATE (+ business rules)
+# 1️⃣1️⃣ DISTRIBUTOR ORDER STATUS UPDATE
 @app.route('/distributor/update_status/<int:order_id>', methods=['PUT'])
 def update_order_status(order_id):
     try:
@@ -497,14 +511,10 @@ def update_order_status(order_id):
             return jsonify({"error": f"Invalid status: {incoming}"}), 400
 
         new_status = allowed[incoming]
-
-        # Update order status
         cursor.execute("UPDATE Orders SET status=%s WHERE order_id=%s", (new_status, order_id))
         db.commit()
 
-        # Business rules
         if incoming == "accepted":
-            # Reduce stock
             cursor.execute("SELECT variant_id, quantity FROM Order_Items WHERE order_id=%s", (order_id,))
             items = cursor.fetchall()
             for it in items:
@@ -514,12 +524,9 @@ def update_order_status(order_id):
                     WHERE variant_id = %s
                 """, (it["quantity"], it["variant_id"]))
             db.commit()
-
         elif incoming == "delivered":
-            # Mark payment completed
             cursor.execute("UPDATE Payments SET status='Completed' WHERE order_id=%s", (order_id,))
             db.commit()
-
         elif incoming == "declined":
             cursor.execute("UPDATE Payments SET status='Cancelled' WHERE order_id=%s", (order_id,))
             db.commit()
@@ -530,7 +537,8 @@ def update_order_status(order_id):
         print("❌ Error updating order:", e)
         return jsonify({"error": str(e)}), 500
 
-# 1️⃣2️⃣ DISTRIBUTOR DELETE / RESTORE (soft delete)
+
+# 1️⃣2️⃣ DISTRIBUTOR DELETE / RESTORE
 @app.route('/distributor/delete_order/<int:order_id>', methods=['PUT'])
 def distributor_soft_delete(order_id):
     try:
@@ -540,6 +548,7 @@ def distributor_soft_delete(order_id):
     except Exception as e:
         db.rollback()
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/distributor/deleted_orders/<int:distributor_id>', methods=['GET'])
 def get_deleted_orders(distributor_id):
@@ -561,6 +570,7 @@ def get_deleted_orders(distributor_id):
         print("❌ Error fetching deleted orders:", e)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/distributor/restore_order/<int:order_id>', methods=['PUT'])
 def distributor_restore_order(order_id):
     try:
@@ -571,24 +581,27 @@ def distributor_restore_order(order_id):
         db.rollback()
         return jsonify({"error": str(e)}), 500
 
-# ==============================
+
 # 1️⃣3️⃣ USER PROFILE (GET/PUT)
-# ==============================
 @app.route('/user/<int:user_id>', methods=['GET'])
 def get_user_profile(user_id):
-    cursor.execute("""
-        SELECT user_id, name, email, contact_no, address, role
-        FROM Users
-        WHERE user_id = %s
-    """, (user_id,))
-    user = cursor.fetchone()
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    return jsonify(user), 200
+    try:
+        cursor.execute("""
+            SELECT user_id, name, email, contact_no, address, role
+            FROM Users
+            WHERE user_id = %s
+        """, (user_id,))
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        return jsonify(user), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/user/<int:user_id>', methods=['PUT'])
 def update_user_profile(user_id):
-    data = request.get_json()
+    data = request.get_json() or {}
     name = data.get("name")
     contact_no = data.get("contact_no")
     address = data.get("address")
@@ -608,25 +621,26 @@ def update_user_profile(user_id):
         db.rollback()
         return jsonify({"error": str(e)}), 500
 
-# ==============================
+
 # 1️⃣4️⃣ DISTRIBUTORS LIST
-# ==============================
 @app.route('/distributors', methods=['GET'])
 def get_distributors():
-    cursor.execute("""
-        SELECT 
-            user_id,
-            name,
-            COALESCE(contact_no, '') AS contact_no,
-            COALESCE(address, '') AS address
-        FROM Users
-        WHERE LOWER(role)='distributor'
-    """)
-    return jsonify(cursor.fetchall()), 200
+    try:
+        cursor.execute("""
+            SELECT 
+                user_id,
+                name,
+                COALESCE(contact_no, '') AS contact_no,
+                COALESCE(address, '') AS address
+            FROM Users
+            WHERE LOWER(role)='distributor'
+        """)
+        return jsonify(cursor.fetchall()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# ==============================
+
 # 1️⃣5️⃣ DISTRIBUTOR PRODUCTS (LIST/ADD/UPDATE/DELETE-soft)
-# ==============================
 @app.route('/distributor/products/<int:distributor_id>', methods=['GET'])
 def get_distributor_products(distributor_id):
     try:
@@ -652,27 +666,28 @@ def get_distributor_products(distributor_id):
         print("❌ Failed to fetch distributor products:", e)
         return jsonify({"error": "Failed to fetch products"}), 500
 
+
 @app.route('/distributor/add_product', methods=['POST'])
 def add_product():
-    data = request.get_json(force=True)
-    distributor_id = data.get("distributor_id")
-    category_id = data.get("category_id")
-    category_name = (data.get("category_name") or data.get("category") or "").strip()
-    product_name = (data.get("product_name") or "").strip()
-    subproduct_name = (data.get("subproduct_name") or "").strip()
-    brand = (data.get("brand") or "").strip()
-    unit = (data.get("unit") or "").strip()
-    price = data.get("price")
-    stock = data.get("stock")
-    image_url = data.get("image_url")
-
-    if not distributor_id or not product_name or not subproduct_name or not brand or not unit:
-        return jsonify({"error": "Missing product data"}), 400
-    if price is None or stock is None:
-        return jsonify({"error": "Missing price/stock"}), 400
-
     try:
-        # Resolve/insert category
+        data = request.get_json(force=True)
+        distributor_id = data.get("distributor_id")
+        category_id = data.get("category_id")
+        category_name = (data.get("category_name") or data.get("category") or "").strip()
+        product_name = (data.get("product_name") or "").strip()
+        subproduct_name = (data.get("subproduct_name") or "").strip()
+        brand = (data.get("brand") or "").strip()
+        unit = (data.get("unit") or "").strip()
+        price = data.get("price")
+        stock = data.get("stock")
+        image_url = data.get("image_url")
+
+        if not distributor_id or not product_name or not subproduct_name or not brand or not unit:
+            return jsonify({"error": "Missing product data"}), 400
+        if price is None or stock is None:
+            return jsonify({"error": "Missing price/stock"}), 400
+
+        # Category
         if not category_id:
             if not category_name:
                 return jsonify({"error": "category_id or category_name required"}), 400
@@ -685,7 +700,7 @@ def add_product():
                 db.commit()
                 category_id = cursor.lastrowid
 
-        # Resolve/insert product
+        # Product
         cursor.execute("SELECT product_id FROM Products WHERE name=%s AND category_id=%s",
                        (product_name, category_id))
         p = cursor.fetchone()
@@ -700,7 +715,7 @@ def add_product():
             db.commit()
             product_id = cursor.lastrowid
 
-        # Resolve/insert subproduct
+        # Subproduct
         cursor.execute("SELECT subproduct_id FROM SubProducts WHERE name=%s AND product_id=%s",
                        (subproduct_name, product_id))
         sp = cursor.fetchone()
@@ -712,7 +727,7 @@ def add_product():
             db.commit()
             subproduct_id = cursor.lastrowid
 
-        # Insert variant
+        # Variant
         cursor.execute("""
             INSERT INTO Product_Variants (subproduct_id, distributor_id, brand, unit, price, stock)
             VALUES (%s, %s, %s, %s, %s, %s)
@@ -723,6 +738,7 @@ def add_product():
         db.rollback()
         print("❌ Error adding product:", e)
         return jsonify({"error": "Failed to add product", "details": str(e)}), 500
+
 
 @app.route('/distributor/update_product/<int:variant_id>', methods=['PUT'])
 def update_distributor_product(variant_id):
@@ -745,10 +761,10 @@ def update_distributor_product(variant_id):
         print("❌ Update product error:", e)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/distributor/delete_product/<int:variant_id>', methods=['DELETE'])
 def delete_distributor_product(variant_id):
     try:
-        # Soft-delete approach to avoid FK issues (orders referencing variants)
         cursor.execute("UPDATE Product_Variants SET stock=0 WHERE variant_id=%s", (variant_id,))
         db.commit()
         return jsonify({"message": f"Variant {variant_id} marked as deleted (stock=0)."}), 200
@@ -756,14 +772,12 @@ def delete_distributor_product(variant_id):
         db.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 # ==============================
 # RUN
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
-
-
-
 
 
 
