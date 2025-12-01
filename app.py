@@ -178,10 +178,12 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
     return response
 
-
 @app.route('/register', methods=['POST'])
 def register():
     try:
+        if cursor is None:
+            return jsonify({"error": "DB not connected"}), 500
+
         data = request.json or {}
         name = data.get("name")
         email = data.get("email")
@@ -204,31 +206,39 @@ def register():
 
     except Exception as e:
         print("❌ /register error:", e)
-        # IMPORTANT: always return JSON, even on error
         return jsonify({"error": "Server error", "details": str(e)}), 500
 
 
-
-# ==============================
-# 3️⃣ LOGIN
 # ==============================
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.json
-    email = data.get("email")
-    password = data.get("password")
+    try:
+        if cursor is None:
+            return jsonify({"error": "DB not connected"}), 500
 
-    cursor.execute("SELECT * FROM Users WHERE email=%s AND password=%s", (email, password))
-    user = cursor.fetchone()
-    if not user:
-        return jsonify({"error": "Invalid email or password"}), 401
+        data = request.json or {}
+        email = data.get("email")
+        password = data.get("password")
 
-    return jsonify({
-        "user_id": user["user_id"],
-        "name": user["name"],
-        "role": user["role"],
-        "token": f"fake-jwt-token-{user['user_id']}",
-    })
+        if not email or not password:
+            return jsonify({"error": "Missing email or password"}), 400
+
+        cursor.execute("SELECT * FROM Users WHERE email=%s AND password=%s", (email, password))
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({"error": "Invalid email or password"}), 401
+
+        return jsonify({
+            "user_id": user["user_id"],
+            "name": user["name"],
+            "role": user["role"],
+            "token": f"fake-jwt-token-{user['user_id']}",
+        }), 200
+
+    except Exception as e:
+        print("❌ /login error:", e)
+        return jsonify({"error": "Server error", "details": str(e)}), 500
+
 
 # ==============================
 # 4️⃣ CATALOG
@@ -738,6 +748,7 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
