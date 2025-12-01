@@ -36,11 +36,13 @@ except Exception as e:
 # ==============================
 @app.after_request
 def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5500"
+    # 👉 Allow your GitHub Pages frontend
+    response.headers["Access-Control-Allow-Origin"] = "https://monikak2004.github.io"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
     return response
+
 
 # ==============================
 # 1️⃣ ROOT
@@ -603,5 +605,6 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
