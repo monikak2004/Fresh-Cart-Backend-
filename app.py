@@ -44,17 +44,10 @@ def add_cors_headers(response):
     return response
 
 
-# ==============================
-# 1️⃣ ROOT
-# ==============================
-@app.route('/')
-def home():
-    return jsonify({"message": "FreshCart Flask Backend is running!"})
-
 @app.route('/register', methods=['POST'])
 def register():
     try:
-        data = request.json
+        data = request.json or {}
         name = data.get("name")
         email = data.get("email")
         password = data.get("password")
@@ -75,9 +68,11 @@ def register():
         return jsonify({"message": "User registered successfully"}), 201
 
     except Exception as e:
-        # 🔥 TEMPORARY: show the real error so we know what’s wrong
         print("❌ /register error:", e)
+        # IMPORTANT: always return JSON, even on error
         return jsonify({"error": "Server error", "details": str(e)}), 500
+
+
 
 # ==============================
 # 3️⃣ LOGIN
@@ -608,6 +603,7 @@ def delete_distributor_product(variant_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
