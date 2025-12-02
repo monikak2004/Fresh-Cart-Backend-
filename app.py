@@ -33,8 +33,8 @@ except Exception as e:
 # Initialize DB schema
 # ==============================
 def init_db():
-    if cursor is None:
-        print("⚠️ Skipping DB init (no DB connection).")
+if cursor is not None:
+          print("⚠️ Skipping DB init (no DB connection).")
         return
 
     try:
@@ -300,37 +300,59 @@ def place_order():
         data = request.json or {}
         user_id = data.get("user_id")
         cart = data.get("cart", [])
-        total = float(data.get("total", 0))
-        delivery_fee = float(data.get("delivery_fee", 0))
+        # we IGNORE data["total"] from the client now
+        delivery_fee = float(data.get("delivery_fee", 0) or 0)
 
         if not user_id or not cart:
             return jsonify({"error": "Missing order details"}), 400
 
+        # ✅ Recompute total on the backend from cart
+        items_total = 0.0
+        for item in cart:
+            price = float(item.get("price", 0) or 0)
+            qty = int(item.get("quantity", 1) or 1)
+            items_total += price * qty
+
+        order_total = items_total + delivery_fee
+
+        # ✅ Store order_total in Orders
         cursor.execute(
-            "INSERT INTO Orders (user_id, status, payment_status, total_amount) VALUES (%s, %s, %s, %s)",
-            (user_id, "Pending", "Unpaid", total + delivery_fee)
+            "INSERT INTO Orders (user_id, status, payment_status, total_amount) "
+            "VALUES (%s, %s, %s, %s)",
+            (user_id, "Pending", "Unpaid", order_total)
         )
         db.commit()
         order_id = cursor.lastrowid
 
+        # ✅ Store EACH item (keep price as unit price)
         for item in cart:
+            price = float(item.get("price", 0) or 0)
+            qty = int(item.get("quantity", 1) or 1)
             cursor.execute(
-                "INSERT INTO Order_Items (order_id, variant_id, quantity, price) VALUES (%s, %s, %s, %s)",
-                (order_id, item["variant_id"], item["quantity"], item["price"])
+                "INSERT INTO Order_Items (order_id, variant_id, quantity, price) "
+                "VALUES (%s, %s, %s, %s)",
+                (order_id, item["variant_id"], qty, price)
             )
 
+        # ✅ Store total payment amount (same as order_total)
         cursor.execute(
             "INSERT INTO Payments (order_id, amount, status) VALUES (%s, %s, %s)",
-            (order_id, total + delivery_fee, "Pending")
+            (order_id, order_total, "Pending")
         )
         db.commit()
 
-        return jsonify({"message": "Order placed successfully", "order_id": order_id}), 201
+        return jsonify({
+            "message": "Order placed successfully",
+            "order_id": order_id,
+            "items_total": round(items_total, 2),
+            "delivery_fee": round(delivery_fee, 2),
+            "order_total": round(order_total, 2),
+        }), 201
+
     except Exception as e:
         db.rollback()
         print("❌ /place_order error:", e)
         return jsonify({"error": "Server error", "details": str(e)}), 500
-
 
 # ==============================
 # 6️⃣ SHOPOWNER ORDERS
@@ -341,10 +363,10 @@ def get_orders(user_id):
         cursor.execute("""
             SELECT 
                 o.order_id,
-                MAX(o.status) AS status,
-                MAX(o.payment_status) AS payment_status,
-                MAX(o.order_date) AS order_date,
-                MAX(p.amount) AS total_amount,
+                o.status,
+                o.payment_status,
+                o.order_date,
+                o.total_amount,  -- ✅ use Orders.total_amount
                 MAX(p.status) AS payment_state,
                 GROUP_CONCAT(DISTINCT d.name ORDER BY d.name SEPARATOR ', ') AS distributor_name
             FROM Orders o
@@ -353,14 +375,13 @@ def get_orders(user_id):
             JOIN Product_Variants v ON oi.variant_id = v.variant_id
             JOIN Users d ON v.distributor_id = d.user_id
             WHERE o.user_id = %s
-            GROUP BY o.order_id
-            ORDER BY MAX(o.order_date) DESC
+            GROUP BY o.order_id, o.status, o.payment_status, o.order_date, o.total_amount
+            ORDER BY o.order_date DESC
         """, (user_id,))
         return jsonify(cursor.fetchall()), 200
     except Exception as e:
         print("❌ /orders error:", e)
         return jsonify({"error": "Server error", "details": str(e)}), 500
-
 
 # ==============================
 # 7️⃣ SHOPOWNER PAYMENTS
@@ -799,6 +820,7 @@ def get_order_items(order_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
