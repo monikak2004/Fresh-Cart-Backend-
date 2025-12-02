@@ -155,10 +155,6 @@ if cursor is not None:
         print("❌ Error initializing DB schema:", e)
 
 
-if cursor is not None:
-    init_db()
-
-
 # ==============================
 # CORS HEADERS
 # ==============================
@@ -820,6 +816,7 @@ def get_order_items(order_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
