@@ -498,7 +498,7 @@ def get_distributor_orders(distributor_id):
             JOIN Order_Items oi ON o.order_id = oi.order_id
             JOIN Product_Variants v ON oi.variant_id = v.variant_id
             JOIN Users u ON o.user_id = u.user_id
-            JOIN Payments p ON o.order_id = p.order_id
+            LEFT JOIN Payments p ON o.order_id = p.order_id
             WHERE v.distributor_id = %s AND o.status != 'Deleted'
             ORDER BY o.order_date DESC
         """, (distributor_id,))
