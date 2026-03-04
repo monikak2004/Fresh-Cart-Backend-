@@ -28,7 +28,8 @@ cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 except Exception as e:
     print("❌ DB connection failed:", e)
 
-
+if cursor:
+    init_db()
 # ==============================
 # Initialize DB schema
 # ==============================
@@ -41,7 +42,6 @@ def init_db():
         print("🔧 Initializing database schema...")
 
         # Drop in safe order
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
         cursor.execute("DROP TABLE IF EXISTS Order_Items")
         cursor.execute("DROP TABLE IF EXISTS Payments")
         cursor.execute("DROP TABLE IF EXISTS Orders")
@@ -50,8 +50,7 @@ def init_db():
         cursor.execute("DROP TABLE IF EXISTS Products")
         cursor.execute("DROP TABLE IF EXISTS Categories")
         cursor.execute("DROP TABLE IF EXISTS Users")
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
-
+        
         # USERS
         cursor.execute("""
             CREATE TABLE Users (
@@ -815,8 +814,8 @@ def get_order_items(order_id):
 # RUN
 # ==============================
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
+    port = int(os.environ.get("PORT", 5000))
+app.run(host="0.0.0.0", port=port)
 
 
 
