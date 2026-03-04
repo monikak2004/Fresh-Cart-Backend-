@@ -37,119 +37,102 @@ def init_db():
         return
 
     try:
-        print("🔧 Initializing database schema...")
-
-        # Drop in safe order
-        cursor.execute("DROP TABLE IF EXISTS Order_Items")
-        cursor.execute("DROP TABLE IF EXISTS Payments")
-        cursor.execute("DROP TABLE IF EXISTS Orders")
-        cursor.execute("DROP TABLE IF EXISTS Product_Variants")
-        cursor.execute("DROP TABLE IF EXISTS SubProducts")
-        cursor.execute("DROP TABLE IF EXISTS Products")
-        cursor.execute("DROP TABLE IF EXISTS Categories")
-        cursor.execute("DROP TABLE IF EXISTS Users")
+        print("🔧 Initializing PostgreSQL database schema...")
         
         # USERS
         cursor.execute("""
-            CREATE TABLE Users (
-                user_id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                email VARCHAR(255) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL,
-                role ENUM('shop_owner','distributor') NOT NULL,
-                contact_no VARCHAR(20),
-                address TEXT
-            )
+        CREATE TABLE IF NOT EXISTS Users (
+            user_id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            role VARCHAR(20) NOT NULL,
+            contact_no VARCHAR(20),
+            address TEXT
+        )
         """)
 
         # CATEGORIES
         cursor.execute("""
-            CREATE TABLE Categories (
-                category_id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL UNIQUE
-            )
+        CREATE TABLE IF NOT EXISTS Categories (
+            category_id SERIAL PRIMARY KEY,
+            name VARCHAR(100) UNIQUE NOT NULL
+        )
         """)
 
         # PRODUCTS
         cursor.execute("""
-            CREATE TABLE Products (
-                product_id INT AUTO_INCREMENT PRIMARY KEY,
-                category_id INT NOT NULL,
-                name VARCHAR(100) NOT NULL,
-                image_url VARCHAR(500),
-                FOREIGN KEY (category_id) REFERENCES Categories(category_id)
-            )
+        CREATE TABLE IF NOT EXISTS Products (
+            product_id SERIAL PRIMARY KEY,
+            category_id INT REFERENCES Categories(category_id),
+            name VARCHAR(100) NOT NULL,
+            image_url TEXT
+        )
         """)
 
         # SUBPRODUCTS
         cursor.execute("""
-            CREATE TABLE SubProducts (
-                subproduct_id INT AUTO_INCREMENT PRIMARY KEY,
-                product_id INT NOT NULL,
-                name VARCHAR(100) NOT NULL,
-                FOREIGN KEY (product_id) REFERENCES Products(product_id)
-            )
+        CREATE TABLE IF NOT EXISTS SubProducts (
+            subproduct_id SERIAL PRIMARY KEY,
+            product_id INT REFERENCES Products(product_id),
+            name VARCHAR(100) NOT NULL
+        )
         """)
 
         # PRODUCT VARIANTS
         cursor.execute("""
-            CREATE TABLE Product_Variants (
-                variant_id INT AUTO_INCREMENT PRIMARY KEY,
-                subproduct_id INT NOT NULL,
-                distributor_id INT NOT NULL,
-                brand VARCHAR(100) NOT NULL,
-                unit VARCHAR(20) NOT NULL,
-                price DECIMAL(10,2) NOT NULL,
-                stock INT NOT NULL,
-                FOREIGN KEY (subproduct_id) REFERENCES SubProducts(subproduct_id),
-                FOREIGN KEY (distributor_id) REFERENCES Users(user_id)
-            )
+        CREATE TABLE IF NOT EXISTS Product_Variants (
+            variant_id SERIAL PRIMARY KEY,
+            subproduct_id INT REFERENCES SubProducts(subproduct_id),
+            distributor_id INT REFERENCES Users(user_id),
+            brand VARCHAR(100),
+            unit VARCHAR(20),
+            price DECIMAL,
+            stock INT
+        )
         """)
 
         # ORDERS
         cursor.execute("""
-            CREATE TABLE Orders (
-                order_id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                status VARCHAR(50) NOT NULL DEFAULT 'Pending',
-                payment_status VARCHAR(50) NOT NULL DEFAULT 'Unpaid',
-                order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                total_amount DECIMAL(10,2) NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES Users(user_id)
-            )
+        CREATE TABLE IF NOT EXISTS Orders (
+            order_id SERIAL PRIMARY KEY,
+            user_id INT REFERENCES Users(user_id),
+            status VARCHAR(50) DEFAULT 'Pending',
+            payment_status VARCHAR(50) DEFAULT 'Unpaid',
+            order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            total_amount DECIMAL
+        )
         """)
 
         # PAYMENTS
         cursor.execute("""
-            CREATE TABLE Payments (
-                payment_id INT AUTO_INCREMENT PRIMARY KEY,
-                order_id INT NOT NULL,
-                amount DECIMAL(10,2) NOT NULL,
-                status VARCHAR(50) NOT NULL DEFAULT 'Pending',
-                payment_method VARCHAR(50),
-                payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (order_id) REFERENCES Orders(order_id)
-            )
+        CREATE TABLE IF NOT EXISTS Payments (
+            payment_id SERIAL PRIMARY KEY,
+            order_id INT REFERENCES Orders(order_id),
+            amount DECIMAL,
+            status VARCHAR(50),
+            payment_method VARCHAR(50),
+            payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
         """)
 
         # ORDER ITEMS
         cursor.execute("""
-            CREATE TABLE Order_Items (
-                order_item_id INT AUTO_INCREMENT PRIMARY KEY,
-                order_id INT NOT NULL,
-                variant_id INT NOT NULL,
-                quantity INT NOT NULL,
-                price DECIMAL(10,2) NOT NULL,
-                FOREIGN KEY (order_id) REFERENCES Orders(order_id),
-                FOREIGN KEY (variant_id) REFERENCES Product_Variants(variant_id)
-            )
+        CREATE TABLE IF NOT EXISTS Order_Items (
+            order_item_id SERIAL PRIMARY KEY,
+            order_id INT REFERENCES Orders(order_id),
+            variant_id INT REFERENCES Product_Variants(variant_id),
+            quantity INT,
+            price DECIMAL
+        )
         """)
 
         db.commit()
-        print("✅ Database schema initialized successfully.")
+        print("✅ PostgreSQL schema initialized.")
+
     except Exception as e:
         db.rollback()
-        print("❌ Error initializing DB schema:", e)
+        print("❌ DB schema error:", e)
     
     if cursor:
         init_db()
