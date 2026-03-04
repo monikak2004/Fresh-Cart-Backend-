@@ -804,13 +804,10 @@ def get_order_items(order_id):
             WHERE oi.order_id = %s
         """, (order_id,))
         rows = cursor.fetchall()
+
         return jsonify(rows), 200
+    
     except Exception as e:
         print("❌ /order_items error:", e)
         return jsonify({"error": "Failed to fetch order items"}), 500
 
-# ==============================
-# RUN
-# ==============================
-if __name__ == "__main__":
-    app.run(debug=True)
