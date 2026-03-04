@@ -8,7 +8,7 @@ def get_db_connection():
         database="fresh_cart"      # Replace with your DB name
     )
     return connection
-=======
+
 import mysql.connector
 
 def get_db_connection():
