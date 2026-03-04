@@ -287,6 +287,7 @@ def get_catalog():
 @app.route('/place_order', methods=['POST'])
 def place_order():
     try:
+        db.rollback()
         data = request.json or {}
         user_id = data.get("user_id")
         cart = data.get("cart", [])
@@ -351,6 +352,7 @@ def place_order():
 @app.route('/orders/<int:user_id>', methods=['GET'])
 def get_orders(user_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT 
                 o.order_id,
@@ -380,6 +382,7 @@ def get_orders(user_id):
 @app.route('/payments/<int:user_id>', methods=['GET'])
 def get_payments(user_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT 
                 p.payment_id,
@@ -414,6 +417,7 @@ def get_payments(user_id):
 @app.route('/distributor/payments/<int:distributor_id>', methods=['GET'])
 def get_distributor_payments(distributor_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT 
                 p.payment_id,
@@ -444,6 +448,7 @@ def get_distributor_payments(distributor_id):
 @app.route('/distributor/update_payment/<int:payment_id>', methods=['PUT'])
 def update_distributor_payment(payment_id):
     try:
+        db.rollback()
         data = request.get_json(force=True)
 
         new_status = (data.get("status") or "").strip().capitalize()
@@ -480,6 +485,7 @@ def update_distributor_payment(payment_id):
 @app.route('/distributor/orders/<int:distributor_id>', methods=['GET'])
 def get_distributor_orders(distributor_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT DISTINCT 
                 o.order_id, 
@@ -506,6 +512,7 @@ def get_distributor_orders(distributor_id):
 @app.route('/distributor/update_status/<int:order_id>', methods=['PUT'])
 def update_order_status(order_id):
     try:
+        db.rollback()
         data = request.get_json(force=True) or {}
         incoming = (data.get("status") or "").strip().lower()
         if not incoming:
@@ -555,6 +562,7 @@ def update_order_status(order_id):
 @app.route('/distributor/delete_order/<int:order_id>', methods=['PUT'])
 def distributor_soft_delete(order_id):
     try:
+        db.rollback()
         cursor.execute("UPDATE Orders SET status='Deleted' WHERE order_id=%s", (order_id,))
         db.commit()
         return jsonify({"message": f"Order {order_id} marked as deleted."}), 200
@@ -566,6 +574,7 @@ def distributor_soft_delete(order_id):
 @app.route('/distributor/deleted_orders/<int:distributor_id>', methods=['GET'])
 def get_deleted_orders(distributor_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT DISTINCT 
                 o.order_id, o.order_date, o.status, o.payment_status,
@@ -587,6 +596,7 @@ def get_deleted_orders(distributor_id):
 @app.route('/distributor/restore_order/<int:order_id>', methods=['PUT'])
 def distributor_restore_order(order_id):
     try:
+        db.rollback()
         cursor.execute("UPDATE Orders SET status='Pending' WHERE order_id=%s", (order_id,))
         db.commit()
         return jsonify({"message": f"Order {order_id} restored successfully."}), 200
@@ -599,6 +609,7 @@ def distributor_restore_order(order_id):
 @app.route('/user/<int:user_id>', methods=['GET'])
 def get_user_profile(user_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT user_id, name, email, contact_no, address, role
             FROM Users
@@ -614,6 +625,7 @@ def get_user_profile(user_id):
 
 @app.route('/user/<int:user_id>', methods=['PUT'])
 def update_user_profile(user_id):
+    db.rollback()
     data = request.get_json() or {}
     name = data.get("name")
     contact_no = data.get("contact_no")
@@ -639,6 +651,7 @@ def update_user_profile(user_id):
 @app.route('/distributors', methods=['GET'])
 def get_distributors():
     try:
+        db.rollback()
         cursor.execute("""
             SELECT 
                 user_id,
@@ -657,6 +670,7 @@ def get_distributors():
 @app.route('/distributor/products/<int:distributor_id>', methods=['GET'])
 def get_distributor_products(distributor_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT 
                 v.variant_id,
@@ -683,6 +697,7 @@ def get_distributor_products(distributor_id):
 @app.route('/distributor/add_product', methods=['POST'])
 def add_product():
     try:
+        db.rollback()
         data = request.get_json(force=True)
         distributor_id = data.get("distributor_id")
         category_id = data.get("category_id")
@@ -767,6 +782,7 @@ def add_product():
 @app.route('/distributor/update_product/<int:variant_id>', methods=['PUT'])
 def update_distributor_product(variant_id):
     try:
+        db.rollback()
         data = request.get_json(force=True)
         price = data.get("price")
         stock = data.get("stock")
@@ -789,6 +805,7 @@ def update_distributor_product(variant_id):
 @app.route('/distributor/delete_product/<int:variant_id>', methods=['DELETE'])
 def delete_distributor_product(variant_id):
     try:
+        db.rollback()
         cursor.execute("UPDATE Product_Variants SET stock=0 WHERE variant_id=%s", (variant_id,))
         db.commit()
         return jsonify({"message": f"Variant {variant_id} marked as deleted (stock=0)."}), 200
@@ -799,6 +816,7 @@ def delete_distributor_product(variant_id):
 @app.route("/order_items/<int:order_id>", methods=["GET"])
 def get_order_items(order_id):
     try:
+        db.rollback()
         cursor.execute("""
             SELECT 
                 oi.quantity,
