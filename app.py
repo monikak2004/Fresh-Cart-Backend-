@@ -25,12 +25,13 @@ try:
     cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     print("✅ Connected to Render PostgreSQL")
 
-    init_db()   
+
 
 except Exception as e:
     print("❌ DB connection failed:", e)
     cursor = None
     
+
 # ==============================
 # Initialize DB schema
 # ==============================
@@ -138,6 +139,9 @@ def init_db():
         print("❌ DB schema error:", e)
 
 
+if cursor:
+   init_db()
+
 # ==============================
 # CORS HEADERS
 # ==============================
@@ -158,12 +162,17 @@ def debug_db():
     try:
         if cursor is None:
             return jsonify({"ok": False, "error": "DB not connected"}), 500
-        cursor.execute("SHOW TABLES")
+        cursor.execute("""
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema='public'
+        """)
+
         tables = cursor.fetchall()
         return jsonify({"ok": True, "tables": tables}), 200
+
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
-
 
 # ==============================
 # 1️⃣ ROOT
@@ -295,13 +304,14 @@ def place_order():
         order_total = items_total + delivery_fee
 
         # ✅ Store order_total in Orders
-        cursor.execute(
-            "INSERT INTO Orders (user_id, status, payment_status, total_amount) "
-            "VALUES (%s, %s, %s, %s)",
-            (user_id, "Pending", "Unpaid", order_total)
-        )
-        db.commit()
-        order_id = cursor.lastrowid
+        cursor.execute("""
+        INSERT INTO Orders (user_id, status, payment_status, total_amount)
+        VALUES (%s, %s, %s, %s)
+        RETURNING order_id
+        """, (user_id, "Pending", "Unpaid", order_total))
+
+        order_id = cursor.fetchone()["order_id"]
+        
 
         # ✅ Store EACH item (keep price as unit price)
         for item in cart:
@@ -347,7 +357,7 @@ def get_orders(user_id):
                 o.order_date,
                 o.total_amount,  -- ✅ use Orders.total_amount
                 MAX(p.status) AS payment_state,
-                GROUP_CONCAT(DISTINCT d.name ORDER BY d.name SEPARATOR ', ') AS distributor_name
+                STRING_AGG(DISTINCT d.name, ', ') AS distributor_name
             FROM Orders o
             JOIN Payments p ON o.order_id = p.order_id
             JOIN Order_Items oi ON o.order_id = oi.order_id
@@ -433,34 +443,36 @@ def get_distributor_payments(distributor_id):
 def update_distributor_payment(payment_id):
     try:
         data = request.get_json(force=True)
+
         new_status = (data.get("status") or "").strip().capitalize()
 
-        allowed_statuses = ["Pending", "Paid", "Completed", "Refunded", "Cancelled"]
-        if new_status not in allowed_statuses:
-            return jsonify({"error": f"Invalid status '{new_status}'"}), 400
+        allowed = ["Pending","Paid","Completed","Refunded","Cancelled"]
+
+        if new_status not in allowed:
+            return jsonify({"error":"Invalid status"}),400
 
         cursor.execute("""
-            UPDATE Payments
-            SET status = %s
-            WHERE payment_id = %s
-        """, (new_status, payment_id))
-        db.commit()
+        UPDATE Payments
+        SET status=%s
+        WHERE payment_id=%s
+        """,(new_status,payment_id))
 
         cursor.execute("""
-            UPDATE Orders o
-            JOIN Payments p ON o.order_id = p.order_id
-            SET o.payment_status = p.status
-            WHERE p.payment_id = %s
-        """, (payment_id,))
+        UPDATE Orders o
+        SET payment_status=p.status
+        FROM Payments p
+        WHERE o.order_id=p.order_id
+        AND p.payment_id=%s
+        """,(payment_id,))
+
         db.commit()
 
-        return jsonify({"message": f"Payment #{payment_id} updated to {new_status} successfully."}), 200
+        return jsonify({"message":"Payment updated"}),200
 
     except Exception as e:
         db.rollback()
-        print("❌ Error updating payment:", e)
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"error":str(e)}),500
+ 
 
 # 🔟 DISTRIBUTOR ORDERS (LIST)
 @app.route('/distributor/orders/<int:distributor_id>', methods=['GET'])
@@ -695,10 +707,14 @@ def add_product():
             if row:
                 category_id = row["category_id"]
             else:
-                cursor.execute("INSERT INTO Categories (name) VALUES (%s)", (category_name.capitalize(),))
-                db.commit()
-                category_id = cursor.lastrowid
+                cursor.execute("""
+                INSERT INTO Categories (name)
+                VALUES (%s)
+                RETURNING category_id
+                """, (category_name.capitalize(),))
 
+                category_id = cursor.fetchone()["category_id"]
+                db.commit()
         # Product
         cursor.execute("SELECT product_id FROM Products WHERE name=%s AND category_id=%s",
                        (product_name, category_id))
@@ -709,10 +725,14 @@ def add_product():
                 cursor.execute("UPDATE Products SET image_url=%s WHERE product_id=%s", (image_url, product_id))
                 db.commit()
         else:
-            cursor.execute("INSERT INTO Products (category_id, name, image_url) VALUES (%s, %s, %s)",
-                           (category_id, product_name, image_url))
-            db.commit()
-            product_id = cursor.lastrowid
+           cursor.execute("""
+           INSERT INTO Products (category_id, name, image_url)
+           VALUES (%s, %s, %s)
+           RETURNING product_id
+           """, (category_id, product_name, image_url))
+
+           product_id = cursor.fetchone()["product_id"]
+           db.commit()
 
         # Subproduct
         cursor.execute("SELECT subproduct_id FROM SubProducts WHERE name=%s AND product_id=%s",
@@ -721,12 +741,15 @@ def add_product():
         if sp:
             subproduct_id = sp["subproduct_id"]
         else:
-            cursor.execute("INSERT INTO SubProducts (product_id, name) VALUES (%s, %s)",
-                           (product_id, subproduct_name))
-            db.commit()
-            subproduct_id = cursor.lastrowid
+            cursor.execute("""
+            INSERT INTO SubProducts (product_id, name)
+            VALUES (%s, %s)
+            RETURNING subproduct_id
+            """, (product_id, subproduct_name))
 
-        # Variant
+            subproduct_id = cursor.fetchone()["subproduct_id"]
+            db.commit()
+ # Variant
         cursor.execute("""
             INSERT INTO Product_Variants (subproduct_id, distributor_id, brand, unit, price, stock)
             VALUES (%s, %s, %s, %s, %s, %s)
