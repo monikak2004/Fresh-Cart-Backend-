@@ -21,8 +21,9 @@ try:
     DATABASE_URL = os.environ.get("DATABASE_URL")
 
     db = psycopg2.connect(DATABASE_URL)
-    cursor = db.cursor()
-
+    import psycopg2.extras
+cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+init_db()
     print("✅ Connected to Render PostgreSQL")
 
 except Exception as e:
@@ -816,6 +817,7 @@ def get_order_items(order_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
