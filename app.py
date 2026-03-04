@@ -28,8 +28,6 @@ cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 except Exception as e:
     print("❌ DB connection failed:", e)
 
-if cursor:
-    init_db()
 # ==============================
 # Initialize DB schema
 # ==============================
@@ -152,8 +150,9 @@ def init_db():
     except Exception as e:
         db.rollback()
         print("❌ Error initializing DB schema:", e)
-
-
+    
+    if cursor:
+        init_db()
 # ==============================
 # CORS HEADERS
 # ==============================
@@ -816,6 +815,7 @@ def get_order_items(order_id):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
 app.run(host="0.0.0.0", port=port)
+
 
 
 
