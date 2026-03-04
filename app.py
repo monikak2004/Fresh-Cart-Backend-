@@ -22,7 +22,7 @@ try:
 
     db = psycopg2.connect(DATABASE_URL)
     import psycopg2.extras
-cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     print("✅ Connected to Render PostgreSQL")
 
 except Exception as e:
