@@ -222,6 +222,7 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     try:
+        db.rollback()
         if cursor is None:
             return jsonify({"error": "DB not connected on server"}), 500
 
@@ -254,6 +255,7 @@ def login():
 @app.route('/catalog', methods=['GET'])
 def get_catalog():
     try:
+        db.rollback() 
         cursor.execute("""
             SELECT 
                 c.name AS category,
