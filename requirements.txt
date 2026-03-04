@@ -1,4 +1,12 @@
+<<<<<<< HEAD
 flask
 flask-cors
 gunicorn
 mysql-connector-python
+=======
+flask
+gunicorn
+flask-cors
+psycopg2-binary
+
+>>>>>>> e504f2ae1c99d25c5605eafcd50210636817c8fa
