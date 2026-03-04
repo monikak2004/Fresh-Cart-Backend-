@@ -25,9 +25,12 @@ try:
     cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     print("✅ Connected to Render PostgreSQL")
 
+    init_db()   
+
 except Exception as e:
     print("❌ DB connection failed:", e)
-
+    cursor = None
+    
 # ==============================
 # Initialize DB schema
 # ==============================
@@ -38,7 +41,7 @@ def init_db():
 
     try:
         print("🔧 Initializing PostgreSQL database schema...")
-        
+
         # USERS
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS Users (
@@ -133,9 +136,8 @@ def init_db():
     except Exception as e:
         db.rollback()
         print("❌ DB schema error:", e)
-    
-    if cursor:
-        init_db()
+
+
 # ==============================
 # CORS HEADERS
 # ==============================
