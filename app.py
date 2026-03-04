@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import mysql.connector
-
+import psycopg2
+import os
 app = Flask(__name__)
 
 CORS(app, origins=[
@@ -11,20 +11,20 @@ CORS(app, origins=[
 ], supports_credentials=True)
 
 # ==============================
-# Database Connection (Railway)
+# Database Connection (Render Postgres)
 # ==============================
+
 db = None
 cursor = None
+
 try:
-    db = mysql.connector.connect(
-        host="mainline.proxy.rlwy.net",
-        user="root",
-        password="NGjzauEicmGceHvQKVhrWnDRfyXSBTRx",
-        database="railway",
-        port=57789
-    )
-    cursor = db.cursor(dictionary=True)
-    print("✅ Connected to Railway MySQL")
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+
+    db = psycopg2.connect(DATABASE_URL)
+    cursor = db.cursor()
+
+    print("✅ Connected to Render PostgreSQL")
+
 except Exception as e:
     print("❌ DB connection failed:", e)
 
@@ -33,8 +33,8 @@ except Exception as e:
 # Initialize DB schema
 # ==============================
 def init_db():
-if cursor is not None:
-          print("⚠️ Skipping DB init (no DB connection).")
+    if cursor is None:
+        print("⚠️ Skipping DB init (no DB connection).")
         return
 
     try:
@@ -816,6 +816,7 @@ def get_order_items(order_id):
 # ==============================
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
