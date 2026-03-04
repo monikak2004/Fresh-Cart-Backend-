@@ -257,7 +257,7 @@ def get_catalog():
     try:
         db.rollback()  # reset failed transaction
         db.rollback() 
-        
+
         cursor.execute("""
             SELECT 
                 c.name AS category,
@@ -489,20 +489,26 @@ def get_distributor_orders(distributor_id):
     try:
         db.rollback()
         cursor.execute("""
-            SELECT DISTINCT 
-                o.order_id, 
-                o.order_date, 
-                o.status, 
-                o.payment_status, 
-                u.name AS shop_owner, 
-                p.amount
-            FROM Orders o
-            JOIN Order_Items oi ON o.order_id = oi.order_id
-            JOIN Product_Variants v ON oi.variant_id = v.variant_id
-            JOIN Users u ON o.user_id = u.user_id
-            LEFT JOIN Payments p ON o.order_id = p.order_id
-            WHERE v.distributor_id = %s AND o.status != 'Deleted'
-            ORDER BY o.order_date DESC
+        SELECT 
+             o.order_id,
+             o.order_date,
+             o.status,
+             o.payment_status,
+             u.name AS shop_owner,
+             MAX(p.amount) AS amount
+        FROM Orders o
+        JOIN Order_Items oi ON o.order_id = oi.order_id
+        JOIN Product_Variants v ON oi.variant_id = v.variant_id
+        JOIN Users u ON o.user_id = u.user_id
+        LEFT JOIN Payments p ON o.order_id = p.order_id
+        WHERE v.distributor_id = %s
+        GROUP BY 
+            o.order_id,
+            o.order_date,
+            o.status,
+            o.payment_status,
+            u.name
+        ORDER BY o.order_date DESC
         """, (distributor_id,))
         return jsonify(cursor.fetchall()), 200
     except Exception as e:
