@@ -421,23 +421,22 @@ def get_distributor_payments(distributor_id):
     try:
         db.rollback()
         cursor.execute("""
-            SELECT 
-                p.payment_id,
-                p.order_id,
-                u.name AS shop_name,
-                p.amount,
-                p.status AS payment_status,
-                p.payment_method,
-                p.payment_date
-            FROM Payments p
-            JOIN Orders o ON p.order_id = o.order_id
-            JOIN Users u ON o.user_id = u.user_id
-            JOIN Order_Items oi ON o.order_id = oi.order_id
-            JOIN Product_Variants v ON oi.variant_id = v.variant_id
-            WHERE v.distributor_id = %s
-            GROUP BY p.payment_id
-            ORDER BY p.payment_date DESC
-        """, (distributor_id,))
+SELECT DISTINCT
+    p.payment_id,
+    p.order_id,
+    u.name AS shop_name,
+    p.amount,
+    p.status AS payment_status,
+    p.payment_method,
+    p.payment_date
+FROM Payments p
+JOIN Orders o ON p.order_id = o.order_id
+JOIN Users u ON o.user_id = u.user_id
+JOIN Order_Items oi ON o.order_id = oi.order_id
+JOIN Product_Variants v ON oi.variant_id = v.variant_id
+WHERE v.distributor_id = %s
+ORDER BY p.payment_date DESC
+""", (distributor_id,))
         return jsonify(cursor.fetchall()), 200
     except Exception as e:
         print("❌ /distributor/payments error:", e)
